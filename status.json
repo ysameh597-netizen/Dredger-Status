@@ -1,4 +1,4 @@
 {
- "payload": "{\"v\":1,\"seq\":1792433297,\"c\":{\"C0001\":{\"revoked\":true,\"cancelled\":false,\"expiry\":\"2026-10-24\",\"set\":\"2026-10-19\",\"msg\":\"rn ya 3rs\"}}}",
- "sig": "7e9d6b81cb04e009744e09e202926d8d8a40311c76121aae1bfab89d31a87337a1a290c043550cd22d6f62e7fbe4ce7bd7f9039ed0f774c205aa81c5be373c01"
+ "payload": "{\"c\":{\"C0001\":{\"cancelled\":false,\"expiry\":\"2026-10-29\",\"revoked\":false,\"set\":\"2026-10-19\"}},\"seq\":1792436586383,\"v\":1}",
+ "sig": "2dd7bb1a13ba0460e466475e5c44d23c2a4f0fef588cf98fdb167ee07212355c663f6e154568db41f66291e5a6dd754643e77f80abaf0cb536cd1fdd40bd4806"
 }
