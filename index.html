@@ -139,7 +139,7 @@ async function saveAll(label){
   var c={},cust=REG.customers;
   Object.keys(cust).forEach(function(id){var r=cust[id].remote;
     var e={revoked:!!(r.revoked||r.cancelled),cancelled:!!r.cancelled,expiry:r.expiry||"",set:r.set||""};if(r.msg)e.msg=r.msg;c[id]=e});
-  var payload=JSON.stringify({v:1,seq:Math.floor(Date.now()/1000),c:c});
+  var payload=JSON.stringify({v:1,seq:Date.now(),c:c});
   var sig=await signText(S.seed,payload);
   var st=JSON.stringify({payload:payload,sig:sig},null,1);
   REG.at=nowIso();
