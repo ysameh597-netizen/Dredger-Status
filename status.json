@@ -1,4 +1,4 @@
 {
- "payload": "{\"c\":{},\"seq\":1792421722,\"v\":1}",
- "sig": "5696496378d8dbcc5831dec1f68ba1129eda01d9a96919437c7676ebf08157f7daa2bca0f73d659ae474a4190ab966a4bed5158a0d71c518491a14798e844a0b"
+ "payload": "{\"c\":{\"C0001\":{\"cancelled\":false,\"expiry\":\"2026-10-21\",\"revoked\":false,\"set\":\"2026-10-19\"}},\"seq\":1792421852,\"v\":1}",
+ "sig": "963a7adc4a929e50ef0c28d4af0f29c6325a021b7eee7e7c79855bc2987aff92c80675df32ffffc28ddb406501f762f28e2373f54918a00fe8dd43f5292c730a"
 }
