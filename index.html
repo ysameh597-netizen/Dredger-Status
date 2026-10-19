@@ -37,7 +37,7 @@ dialog::backdrop{background:#000a}
 </style>
 </head>
 <body>
-<header><h1>📊 اشتراكات Dredger</h1><button class="g" id="bRefresh" onclick="loadAll()">تحديث</button><button class="g" id="bLock" onclick="lock()">قفل</button></header>
+<header><h1>📊 اشتراكات Dredger</h1><button class="g" id="bTest" onclick="testConnection()">اختبار الاتصال</button><button class="g" id="bRefresh" onclick="loadAll()">تحديث</button><button class="g" id="bLock" onclick="lock()">قفل</button></header>
 <div id="app"></div>
 <dialog id="dlg"></dialog>
 
@@ -83,8 +83,15 @@ function gh(method,path,body){
     {method:method,headers:{"Authorization":"Bearer "+S.token,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"},body:body?JSON.stringify(body):undefined,signal:ac.signal})
   .then(async function(r){clearTimeout(tm);
     if(r.status===404)return null;
-    if(!r.ok){var m={401:"التوكن غلط أو منتهى",403:"التوكن ملوش صلاحية الكتابة على الريبو",409:"conflict",422:"طلب غير صالح"}[r.status]||("خطأ "+r.status);throw new Error(m)}
-    return r.json()},function(e){clearTimeout(tm);throw new Error(e&&e.name==="AbortError"?"GitHub مش بيرد (انتهت المهلة) — جرّب تانى":"مفيش اتصال بالنت أو GitHub مش بيرد")})}
+    if(!r.ok){
+      var m={401:"التوكن غير صحيح أو منتهي (HTTP 401)",403:"رفض GitHub الطلب (HTTP 403): راجع صلاحية Contents: Read and write وحدود التوكن، وقد يكون هناك حدّ طلبات API",409:"تعارض في الملف (HTTP 409) — حدّث الصفحة وحاول تاني",422:"GitHub رفض البيانات (HTTP 422): راجع اسم الفرع ووجوده"}[r.status]||("GitHub رجّع HTTP "+r.status);
+      throw new Error(m)
+    }
+    return r.json()},function(e){
+      clearTimeout(tm);
+      if(e&&e.name==="AbortError")throw new Error("انتهت مهلة الاتصال بـ api.github.com بعد 20 ثانية. جرّب شبكة أخرى أو عطّل VPN/Proxy مؤقتاً.");
+      throw new Error("تعذّر على المتصفح الوصول إلى https://api.github.com. ده غالباً حجب/مشكلة DNS أو VPN/Proxy أو اتصال الشبكة، وليس كلمة السر. افتح https://api.github.com في تبويب جديد للتأكد، ثم افتح لوحة الإدارة من رابط HTTPS (GitHub Pages) وليس من معاينة GitHub أو محرر الملفات. تفاصيل: "+(e&&e.message?e.message:"فشل fetch"))
+    })}
 async function repoExists(){
   try{var r=await fetch("https://api.github.com/repos/"+S.owner+"/"+S.repo,{headers:{"Authorization":"Bearer "+S.token,"Accept":"application/vnd.github+json"}});return r.status}
   catch(e){return 0}}
@@ -152,6 +159,29 @@ async function act(id,fn,label){
   catch(e){closeDlg();render();msg(e.message,"e")}}
 
 // ================= الشاشات
+async function testConnection(){
+  var box=$("#app");
+  try{
+    var owner=S?S.owner:($("#s_owner")?$("#s_owner").value.trim():"");
+    var repo=S?S.repo:($("#s_repo")?$("#s_repo").value.trim():"");
+    var token=S?S.token:($("#s_token")?$("#s_token").value.trim():"");
+    if(!owner||!repo||!token)throw new Error("اكتب اسم المستخدم والريبو والتوكن أولاً.");
+    if(/[\\/ :]/.test(owner)||/[\\/ :]/.test(repo))throw new Error("اكتب اسم المستخدم والريبو فقط، وليس رابطاً كاملاً.");
+    var r=await fetch("https://api.github.com/repos/"+encodeURIComponent(owner)+"/"+encodeURIComponent(repo),{
+      headers:{"Authorization":"Bearer "+token,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"},
+      signal:AbortSignal.timeout?AbortSignal.timeout(15000):undefined
+    });
+    if(r.status===200)msg("الاتصال بـ GitHub ناجح والريبو ظاهر للتوكن. لو السجل لا يحمّل، راجع وجود registry.enc.json وstatus.json على الفرع المحدد.","o");
+    else if(r.status===401)throw new Error("وصلنا إلى GitHub لكن التوكن غير صحيح أو منتهي (401).");
+    else if(r.status===403)throw new Error("وصلنا إلى GitHub لكن الطلب مرفوض (403): راجع صلاحيات التوكن أو حدّ الطلبات.");
+    else if(r.status===404)throw new Error("GitHub استجاب لكن الريبو غير موجود أو التوكن لا يملك الوصول إليه (404).");
+    else throw new Error("GitHub استجاب برمز HTTP "+r.status+".");
+  }catch(e){
+    var m=e&&e.message?e.message:String(e);
+    if(m==="Failed to fetch"||e instanceof TypeError)m="المتصفح لم يصل إلى api.github.com. افتح https://api.github.com في تبويب جديد، وتأكد أنك تستخدم HTTPS وأن الشبكة لا تحجب GitHub API.";
+    msg(m,"e");
+  }
+}
 function lock(){S=null;REG=null;showLogin()}
 function hasSaved(){try{return!!localStorage.getItem("dredger_admin")}catch(e){return false}}
 window.addEventListener('unhandledrejection',function(ev){try{var n=$('#note');if(!n){$('#app').innerHTML='<div id="note"></div>';n=$('#note')}n.innerHTML='<div class="msg e">'+esc(ev.reason&&ev.reason.message||ev.reason)+'</div>'}catch(x){}});
@@ -173,6 +203,8 @@ async function saveSetup(){
   try{
     var s={owner:$("#s_owner").value.trim(),repo:$("#s_repo").value.trim(),branch:$("#s_branch").value.trim()||"main",token:$("#s_token").value.trim(),seed:$("#s_seed").value.trim(),pass:$("#s_pass").value};
     if(!s.owner||!s.repo||!s.token||!s.pass)throw new Error("كمّل كل الخانات");
+    if(/[\\/ :]/.test(s.owner)||/[\\/ :]/.test(s.repo))throw new Error("اكتب اسم المستخدم واسم الريبو فقط، من غير رابط github.com أو مسافات");
+    if(!/^[0-9a-fA-F]{64}$/.test(s.seed))throw new Error("مفتاح الحالة لازم يكون 64 حرف hex من ملف status.seed");
     hex2u8(s.seed);
     var blob=await encJson({token:s.token,seed:s.seed},s.pass);
     localStorage.setItem("dredger_admin",JSON.stringify({owner:s.owner,repo:s.repo,branch:s.branch,blob:blob}));
