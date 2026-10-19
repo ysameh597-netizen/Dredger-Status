@@ -155,7 +155,7 @@ async function act(id,fn,label){
     rec.remote.set=today();rec.remote.at=nowIso();
     rec.history=(rec.history||[]).concat([{issued:"",expiry:rec.remote.expiry,note:"remote "+label+" "+today()}]).slice(-30);
     await saveAll(label+" "+id);
-    closeDlg();render();msg("تم: "+label+" — "+rec.name+" (بيوصل للعميل أول ما جهازه يفتح نت، تقريباً خلال 5 دقايق)","o")}
+    closeDlg();render();msg("تم: "+label+" — "+rec.name+" (البرنامج المتصل بالإنترنت يراجع الحالة كل 15 ثانية؛ قد يتأثر وصول التحديث بتخزين GitHub المؤقت والشبكة)","o")}
   catch(e){closeDlg();render();msg(e.message,"e")}}
 
 // ================= الشاشات
