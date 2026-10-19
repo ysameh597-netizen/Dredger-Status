@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Dredger — لوحة الاشتراكات</title>
+<style>
+:root{--bg:#0b1424;--card:#12203a;--line:#24406b;--fg:#e5ecf8;--mut:#8fb0d8;--acc:#14b8a6;--warn:#fbbf24;--bad:#f87171;--blue:#38bdf8}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.6 Tahoma,Arial,sans-serif;padding:0 16px 80px;max-width:760px;margin:0 auto}
+header{display:flex;align-items:center;gap:10px;padding:16px 0 8px}
+header h1{font-size:20px;margin:0;flex:1}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:var(--acc);color:#041b1a;border:0;border-radius:10px;padding:9px 14px;font-weight:700;cursor:pointer}
+button.g{background:#24406b;color:var(--fg)}button.r{background:var(--bad);color:#2a0606}button.w{background:var(--warn);color:#1a1200}button.b{background:var(--blue);color:#04202e}
+button:disabled{opacity:.5}
+input,select,textarea{width:100%;background:#0b1424;border:1px solid var(--line);border-radius:10px;padding:10px;margin:4px 0 10px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);border-color:transparent}
+label{color:var(--mut);font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.st{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 6px;text-align:center;cursor:pointer}
+.st.on{outline:2px solid var(--acc)}.st b{display:block;font-size:22px}.st span{font-size:12px;color:var(--mut)}
+.chip{display:inline-block;border-radius:20px;padding:1px 10px;font-size:12px;font-weight:700}
+.ok{background:#0f3d36;color:#5eead4}.exp{background:#4a3a07;color:var(--warn)}.dead{background:#4a1d1d;color:var(--bad)}.sus{background:#3b2a05;color:#fdba74}.can{background:#3f1230;color:#f9a8d4}
+.row{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:14px;margin:8px 0}.kv i{color:var(--mut);font-style:normal}
+.mono{font-family:Consolas,monospace;direction:ltr;unicode-bidi:embed;font-size:12px;word-break:break-all}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.msg{padding:10px;border-radius:10px;margin:10px 0;font-size:14px}.msg.e{background:#4a1d1d}.msg.o{background:#0f3d36}
+.hint{color:var(--mut);font-size:12.5px}
+.empty{text-align:center;color:var(--mut);padding:30px}
+dialog{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:16px;width:min(92vw,420px);padding:16px}
+dialog::backdrop{background:#000a}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<header><h1>📊 اشتراكات Dredger</h1><button class="g" id="bRefresh" onclick="loadAll()">تحديث</button><button class="g" id="bLock" onclick="lock()">قفل</button></header>
+<div id="app"></div>
+<dialog id="dlg"></dialog>
+
+<script>
+"use strict";
+// ================= أدوات
+var $=function(s){return document.querySelector(s)};
+var enc=new TextEncoder(),dec=new TextDecoder();
+function esc(t){return String(t==null?"":t).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function b64e(buf){var u=new Uint8Array(buf),s="";for(var i=0;i<u.length;i+=8192)s+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return btoa(s)}
+function b64d(s){var b=atob(s),u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u}
+function hex2u8(h){h=h.trim();if(!/^[0-9a-fA-F]{64}$/.test(h))throw new Error("مفتاح الحالة لازم يكون 64 حرف (hex)");var u=new Uint8Array(32);for(var i=0;i<32;i++)u[i]=parseInt(h.substr(i*2,2),16);return u}
+function u8hex(u){return Array.from(u).map(function(x){return("0"+x.toString(16)).slice(-2)}).join("")}
+function today(){var d=new Date();return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2)}
+function nowIso(){return new Date().toISOString().replace(/\.\d+Z$/,"Z")}
+function addDays(iso,n){var d=new Date(iso+"T00:00:00");d.setDate(d.getDate()+n);return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2)}
+function addMonths(iso,m){var p=iso.split("-").map(Number),y=p[0],mo=p[1]-1+m,d=p[2];y+=Math.floor(mo/12);mo=((mo%12)+12)%12;var last=new Date(y,mo+1,0).getDate();d=Math.min(d,last);return y+"-"+("0"+(mo+1)).slice(-2)+"-"+("0"+d).slice(-2)}
+function daysBetween(a,b){return Math.round((new Date(b+"T00:00:00")-new Date(a+"T00:00:00"))/86400000)}
+
+// ================= تشفير (نفس صيغة أداة الويندوز)
+async function pbkdf2(pw,salt,it){var k=await crypto.subtle.importKey("raw",enc.encode(pw),"PBKDF2",false,["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2",salt:salt,iterations:it,hash:"SHA-256"},k,{name:"AES-GCM",length:256},false,["encrypt","decrypt"])}
+async function encJson(obj,pw){var salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12)),it=200000;
+  var key=await pbkdf2(pw,salt,it),ct=await crypto.subtle.encrypt({name:"AES-GCM",iv:iv},key,enc.encode(JSON.stringify(obj)));
+  return JSON.stringify({v:1,it:it,salt:b64e(salt),iv:b64e(iv),ct:b64e(ct)})}
+async function decJson(text,pw){var d=JSON.parse(text);var key=await pbkdf2(pw,b64d(d.salt),d.it||200000);
+  try{var p=await crypto.subtle.decrypt({name:"AES-GCM",iv:b64d(d.iv)},key,b64d(d.ct));return JSON.parse(dec.decode(p))}
+  catch(e){throw new Error("كلمة السر غلط")}}
+
+// ================= توقيع Ed25519 (WebCrypto)
+async function signText(seedHex,text){
+  var seed=hex2u8(seedHex),pre=new Uint8Array([0x30,0x2e,0x02,0x01,0x00,0x30,0x05,0x06,0x03,0x2b,0x65,0x70,0x04,0x22,0x04,0x20]);
+  var pk=new Uint8Array(48);pk.set(pre);pk.set(seed,16);
+  var key;try{key=await crypto.subtle.importKey("pkcs8",pk,{name:"Ed25519"},false,["sign"])}
+  catch(e){throw new Error("المتصفح ده مش بيدعم التوقيع (Ed25519). حدّث Chrome أو Safari")}
+  return u8hex(new Uint8Array(await crypto.subtle.sign({name:"Ed25519"},key,enc.encode(text))))}
+
+// ================= GitHub API
+var S=null;   // {owner,repo,branch,token,seed,pass}
+function gh(method,path,body){
+  var ac=new AbortController(),tm=setTimeout(function(){ac.abort()},20000);
+  return fetch("https://api.github.com/repos/"+S.owner+"/"+S.repo+"/contents/"+path+(method==="GET"?"?ref="+encodeURIComponent(S.branch)+"&t="+Date.now():""),
+    {method:method,headers:{"Authorization":"Bearer "+S.token,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"},body:body?JSON.stringify(body):undefined,signal:ac.signal})
+  .then(async function(r){clearTimeout(tm);
+    if(r.status===404)return null;
+    if(!r.ok){var m={401:"التوكن غلط أو منتهى",403:"التوكن ملوش صلاحية الكتابة على الريبو",409:"conflict",422:"طلب غير صالح"}[r.status]||("خطأ "+r.status);throw new Error(m)}
+    return r.json()},function(e){clearTimeout(tm);throw new Error(e&&e.name==="AbortError"?"GitHub مش بيرد (انتهت المهلة) — جرّب تانى":"مفيش اتصال بالنت أو GitHub مش بيرد")})}
+async function repoExists(){
+  try{var r=await fetch("https://api.github.com/repos/"+S.owner+"/"+S.repo,{headers:{"Authorization":"Bearer "+S.token,"Accept":"application/vnd.github+json"}});return r.status}
+  catch(e){return 0}}
+async function ghGetText(path){var d=await gh("GET",path);if(!d||!d.content)return{text:null,sha:null};return{text:dec.decode(b64d(d.content)),sha:d.sha}}
+async function ghPutText(path,text,msg){
+  for(var t=0;t<2;t++){
+    var cur=await gh("GET",path),body={message:msg,content:b64e(enc.encode(text)),branch:S.branch};if(cur&&cur.sha)body.sha=cur.sha;
+    try{if(!await gh("PUT",path,body))throw new Error("الريبو أو الفرع مش موجود");return}
+    catch(e){if(e.message!=="conflict"||t)throw e}}}
+
+// ================= البيانات
+var REG=null,filter="all",q="";
+function statusOf(c){
+  var r=c.remote||{},t=today();
+  if(r.cancelled)return{k:"can",t:"ملغى"};
+  if(r.revoked)return{k:"sus",t:"موقوف"};
+  var d=daysBetween(t,r.expiry||t);
+  if(d<-7)return{k:"dead",t:"منتهى"};
+  if(d<0)return{k:"exp",t:"سماح"};
+  if(d<=30)return{k:"exp",t:"قرب ينتهى"};
+  return{k:"ok",t:"شغال"}}
+function groupOf(c){var s=statusOf(c).k;return s==="ok"?"ok":s==="can"?"can":s==="sus"?"sus":s==="dead"?"dead":"exp"}
+
+async function loadAll(){
+  var box=$("#app");
+  try{
+    var r=await ghGetText("registry.enc.json");
+    if(!r.text){REG={v:1,customers:{}};render();
+      var rs=await repoExists();
+      if(rs===404||rs===401||rs===403)msg("الريبو "+S.owner+"/"+S.repo+" مش متاح بالتوكن ده (اسم المستخدم أو الريبو غلط، أو التوكن مش واخد صلاحية على الريبو ده). دوس «قفل» ثم «إعداد جديد».","e");
+      else msg("مفيش سجل عملاء على الريبو لسه (registry.enc.json). من أداة الويندوز تبويب «تحكم عن بعد» اكتب كلمة سر اللوحة ودوس «نشر الحالة».","e");
+      return}
+    REG=await decJson(r.text,S.pass);render()}
+  catch(e){
+    var m=e&&e.message?e.message:String(e);
+    if(m==="Failed to fetch")m="مفيش اتصال بالنت أو GitHub مش بيرد";
+    if(m==="كلمة السر غلط")m="كلمة سر اللوحة مش نفس اللى فى أداة الويندوز. دوس «قفل» ثم «إعداد جديد» واكتب نفس الكلمة بالظبط، أو غيّرها فى الأداة وانشر الحالة.";
+    if(!REG)REG={v:1,customers:{}};
+    try{render()}catch(x){$("#app").innerHTML='<div id="note"></div>'}
+    msg(m,"e")}}
+function msg(t,k){var m=$("#note");if(m)m.innerHTML='<div class="msg '+(k==="e"?"e":"o")+'">'+esc(t)+'</div>'}
+
+async function saveAll(label){
+  // يبنى status.json موقّع من السجل ويرفعه مع السجل المشفّر
+  var c={},cust=REG.customers;
+  Object.keys(cust).forEach(function(id){var r=cust[id].remote;
+    var e={revoked:!!(r.revoked||r.cancelled),cancelled:!!r.cancelled,expiry:r.expiry||"",set:r.set||""};if(r.msg)e.msg=r.msg;c[id]=e});
+  var payload=JSON.stringify({v:1,seq:Math.floor(Date.now()/1000),c:c});
+  var sig=await signText(S.seed,payload);
+  var st=JSON.stringify({payload:payload,sig:sig},null,1);
+  REG.at=nowIso();
+  await ghPutText("status.json",st,label);
+  await ghPutText("registry.enc.json",await encJson(REG,S.pass),label)}
+
+async function act(id,fn,label){
+  try{
+    // نقرا أحدث سجل قبل التعديل (لو عدّلت من الويندوز)
+    var r=await ghGetText("registry.enc.json");if(r.text)REG=await decJson(r.text,S.pass);
+    var rec=REG.customers[id];if(!rec)throw new Error("العميل مش موجود");
+    rec.remote=rec.remote||{};fn(rec.remote,rec);
+    rec.remote.set=today();rec.remote.at=nowIso();
+    rec.history=(rec.history||[]).concat([{issued:"",expiry:rec.remote.expiry,note:"remote "+label+" "+today()}]).slice(-30);
+    await saveAll(label+" "+id);
+    closeDlg();render();msg("تم: "+label+" — "+rec.name+" (بيوصل للعميل أول ما جهازه يفتح نت، تقريباً خلال 5 دقايق)","o")}
+  catch(e){closeDlg();render();msg(e.message,"e")}}
+
+// ================= الشاشات
+function lock(){S=null;REG=null;showLogin()}
+function hasSaved(){try{return!!localStorage.getItem("dredger_admin")}catch(e){return false}}
+window.addEventListener('unhandledrejection',function(ev){try{var n=$('#note');if(!n){$('#app').innerHTML='<div id="note"></div>';n=$('#note')}n.innerHTML='<div class="msg e">'+esc(ev.reason&&ev.reason.message||ev.reason)+'</div>'}catch(x){}});
+function showLogin(){
+  var saved=hasSaved();
+  $("#bRefresh").classList.add("hide");$("#bLock").classList.add("hide");
+  $("#app").innerHTML=saved?
+  '<div class="card"><h3 style="margin-top:0">🔒 ادخل كلمة سر اللوحة</h3><input type="password" id="pw" autocomplete="current-password" placeholder="كلمة السر"><div class="btns"><button onclick="unlock()">دخول</button><button class="g" onclick="resetSetup()">إعداد جديد</button></div><div id="note"></div></div>'
+  :setupForm()}
+function setupForm(){return '<div class="card"><h3 style="margin-top:0">⚙️ إعداد أول مرة</h3><p class="hint">البيانات دى بتتخزّن مشفّرة على الموبايل ده بس (بكلمة السر اللى هتكتبها) ومبتتبعتش لأى مكان غير GitHub.</p>'+
+  '<label>اسم مستخدم GitHub</label><input id="s_owner" autocapitalize="none" placeholder="مثال: yousef123">'+
+  '<label>اسم الريبو</label><input id="s_repo" autocapitalize="none" placeholder="مثال: dredger-status">'+
+  '<label>الفرع</label><input id="s_branch" value="main" autocapitalize="none">'+
+  '<label>GitHub Token (صلاحية Contents: Read and write على الريبو ده بس)</label><input id="s_token" type="password" autocomplete="off">'+
+  '<label>مفتاح الحالة (status.seed — 64 حرف)</label><input id="s_seed" type="password" autocomplete="off" class="mono">'+
+  '<label>كلمة سر اللوحة (نفس اللى فى أداة الويندوز)</label><input id="s_pass" type="password" autocomplete="new-password">'+
+  '<div class="btns"><button onclick="saveSetup()">حفظ ودخول</button></div><div id="note"></div></div>'}
+async function saveSetup(){
+  try{
+    var s={owner:$("#s_owner").value.trim(),repo:$("#s_repo").value.trim(),branch:$("#s_branch").value.trim()||"main",token:$("#s_token").value.trim(),seed:$("#s_seed").value.trim(),pass:$("#s_pass").value};
+    if(!s.owner||!s.repo||!s.token||!s.pass)throw new Error("كمّل كل الخانات");
+    hex2u8(s.seed);
+    var blob=await encJson({token:s.token,seed:s.seed},s.pass);
+    localStorage.setItem("dredger_admin",JSON.stringify({owner:s.owner,repo:s.repo,branch:s.branch,blob:blob}));
+    S=s;start()}
+  catch(e){msg(e.message,"e")}}
+async function unlock(){
+  try{var p=$("#pw").value,m=JSON.parse(localStorage.getItem("dredger_admin"));
+    var c=await decJson(m.blob,p);S={owner:m.owner,repo:m.repo,branch:m.branch,token:String(c.token).trim(),seed:String(c.seed).trim(),pass:p};start()}
+  catch(e){msg(e.message,"e")}}
+function resetSetup(){if(confirm("هيتمسح الإعداد المحفوظ على الموبايل ده. متأكد؟")){try{localStorage.removeItem("dredger_admin")}catch(e){}showLogin()}}
+function start(){$("#bRefresh").classList.remove("hide");$("#bLock").classList.remove("hide");$("#app").innerHTML='<div class="empty">جارى التحميل...</div>';loadAll()}
+
+function render(){
+  var list=Object.keys(REG.customers).map(function(id){return Object.assign({id:id},REG.customers[id])});
+  var cnt={all:list.length,ok:0,exp:0,dead:0,sus:0,can:0};list.forEach(function(c){cnt[groupOf(c)]++});
+  var tabs=[["all","الكل"],["ok","شغال"],["exp","قرب ينتهى"],["dead","منتهى"],["sus","موقوف"],["can","ملغى"]];
+  var h='<div id="note"></div><div class="stats">'+tabs.map(function(t){return '<div class="st'+(filter===t[0]?" on":"")+'" onclick="setF(\''+t[0]+'\')"><b>'+cnt[t[0]]+'</b><span>'+t[1]+'</span></div>'}).join("")+'</div>';
+  h+='<input id="q" placeholder="🔍 ابحث بالاسم أو الرقم (C0001) أو كود الجهاز" value="'+esc(q)+'" oninput="setQ(this.value)" style="margin-top:12px">';
+  h+='<div id="list"></div><p class="hint">الريبو: <span class="mono">'+esc(S.owner+'/'+S.repo+'@'+S.branch)+'</span></p><p class="hint">عدد «المتصلين الآن» مش متاح: البرنامج بيجيب الحالة بس ومبيبعتش حاجة لأى مكان (مفيش سيرفر). الفتح على أكثر من جهاز بيتمنع تلقائياً بكود الجهاز، وبتسجّل سبب الإلغاء بإيدك.</p>';
+  $("#app").innerHTML=h;list_();}
+function setF(f){filter=f;var n=$("#note");render()}
+function setQ(v){q=v;list_()}
+function list_(){
+  var ql=q.trim().toLowerCase(),out=[];
+  Object.keys(REG.customers).forEach(function(id){var c=Object.assign({id:id},REG.customers[id]);
+    if(filter!=="all"&&groupOf(c)!==filter)return;
+    if(ql&&(id+" "+c.name+" "+(c.machine_code||"")).toLowerCase().indexOf(ql)<0)return;out.push(c)});
+  out.sort(function(a,b){return(a.remote.expiry||"").localeCompare(b.remote.expiry||"")});
+  $("#list").innerHTML=out.length?out.map(card).join(""):'<div class="empty">مفيش نتايج</div>'}
+function card(c){
+  var r=c.remote||{},s=statusOf(c),d=daysBetween(today(),r.expiry||today());
+  var left=r.cancelled?"":d>=0?("المتبقى: <b>"+d+"</b> يوم"):("منتهى من "+(-d)+" يوم");
+  var tot=(c.first&&r.expiry)?daysBetween(c.first,r.expiry):null;
+  return '<div class="card"><div class="row"><b>'+esc(c.name)+' <span class="hint">'+esc(c.id)+'</span></b><span class="chip '+s.k+'">'+s.t+'</span></div>'+
+  '<div class="kv"><i>مشترك من</i><span>'+esc(c.first||"—")+'</span><i>ينتهى</i><span>'+esc(r.expiry||"—")+'</span><i>الوقت</i><span>'+left+(tot!=null?' <span class="hint">(من '+tot+' يوم إجمالى)</span>':'')+'</span>'+
+  (r.reason?'<i>السبب</i><span>'+esc(r.reason)+'</span>':'')+
+  '<i>كود الجهاز</i><span class="mono">'+esc(c.machine_code||"—")+'</span></div>'+
+  '<div class="btns">'+
+  (r.cancelled?'<button class="b" onclick="dAct(\''+c.id+'\',\'uncancel\')">↩️ استرجاع الاشتراك</button>':
+   (r.revoked?'<button onclick="dAct(\''+c.id+'\',\'resume\')">▶️ تشغيل</button>':'<button class="w" onclick="dAct(\''+c.id+'\',\'suspend\')">⏸ إيقاف</button>')+
+   '<button class="b" onclick="dAct(\''+c.id+'\',\'extend\')">➕ تمديد</button>'+
+   '<button class="r" onclick="dAct(\''+c.id+'\',\'cancel\')">⛔ إلغاء</button>')+
+  '</div></div>'}
+
+// ================= النوافذ
+function closeDlg(){try{$("#dlg").close()}catch(e){}}
+var REASONS=["فتح على أكثر من جهاز","عدم سداد الاشتراك","مشاركة الملف مع شخص آخر","طلب العميل","أخرى"];
+function dAct(id,kind){
+  var c=REG.customers[id],d=$("#dlg"),h="";
+  if(kind==="suspend"||kind==="cancel"){
+    var t=kind==="cancel"?"⛔ إلغاء اشتراك "+c.name:"⏸ إيقاف اشتراك "+c.name;
+    h='<h3 style="margin-top:0">'+esc(t)+'</h3><label>السبب (بيتسجّل عندك)</label><select id="d_r">'+REASONS.map(function(x){return'<option>'+x+'</option>'}).join("")+'</select><input id="d_r2" placeholder="تفاصيل إضافية (اختيارى)">'+
+    '<label>رسالة تظهر للعميل (اختيارى)</label><input id="d_m" placeholder="مثال: تواصل مع المطوّر">'+
+    '<div class="btns"><button class="'+(kind==="cancel"?"r":"w")+'" onclick="doStop(\''+id+'\',\''+kind+'\')">تأكيد</button><button class="g" onclick="closeDlg()">رجوع</button></div>'}
+  else if(kind==="extend"){
+    h='<h3 style="margin-top:0">➕ تمديد اشتراك '+esc(c.name)+'</h3><p class="hint">ينتهى حالياً: '+esc(c.remote.expiry)+' (لو منتهى بيتحسب من النهارده)</p>'+
+    '<div class="btns"><button class="b" onclick="doExt(\''+id+'\',\'d\',30)">+30 يوم</button><button class="b" onclick="doExt(\''+id+'\',\'m\',3)">+3 شهور</button><button class="b" onclick="doExt(\''+id+'\',\'m\',6)">+6 شهور</button><button class="b" onclick="doExt(\''+id+'\',\'m\',12)">+سنة</button></div>'+
+    '<label style="display:block;margin-top:12px">أو عدد مخصّص</label><div class="row"><input id="d_n" type="number" min="1" value="15" style="width:45%"><select id="d_u" style="width:50%"><option value="d">يوم</option><option value="m">شهر</option></select></div>'+
+    '<label>أو تاريخ انتهاء محدد</label><input id="d_dt" type="date">'+
+    '<div class="btns"><button onclick="doExtCustom(\''+id+'\')">تطبيق</button><button class="g" onclick="closeDlg()">رجوع</button></div>'}
+  else{
+    var tx=kind==="resume"?"تشغيل الاشتراك":"استرجاع الاشتراك الملغى";
+    h='<h3 style="margin-top:0">'+tx+'؟</h3><p>'+esc(c.name)+'</p><div class="btns"><button onclick="doSimple(\''+id+'\',\''+kind+'\')">تأكيد</button><button class="g" onclick="closeDlg()">رجوع</button></div>'}
+  d.innerHTML=h+'<div id="dnote" class="hint"></div>';d.showModal()}
+function busy(){$("#dnote").textContent="⏳ جارى الحفظ والرفع...";document.querySelectorAll("#dlg button").forEach(function(b){b.disabled=true})}
+function doStop(id,kind){var r=$("#d_r").value,x=$("#d_r2").value.trim(),m=$("#d_m").value.trim();var why=r+(x?" — "+x:"");busy();
+  act(id,function(rm){rm.reason=why;rm.msg=m;if(kind==="cancel"){rm.cancelled=true;rm.revoked=true}else{rm.revoked=true}},kind==="cancel"?"إلغاء":"إيقاف")}
+function doSimple(id,kind){busy();act(id,function(rm){if(kind==="resume"){rm.revoked=false;if(!rm.cancelled){rm.reason="";rm.msg=""}}else{rm.cancelled=false;rm.revoked=false;rm.reason="";rm.msg=""}},kind==="resume"?"تشغيل":"استرجاع")}
+function ext(rm,u,n,dt){var t=today();if(dt){rm.expiry=dt;return}var cur=rm.expiry&&rm.expiry>t?rm.expiry:t;rm.expiry=u==="m"?addMonths(cur,n):addDays(cur,n)}
+function doExt(id,u,n){busy();act(id,function(rm){ext(rm,u,n)},"تمديد")}
+function doExtCustom(id){var dt=$("#d_dt").value,n=parseInt($("#d_n").value,10),u=$("#d_u").value;if(!dt&&!(n>0)){$("#dnote").textContent="اكتب رقم صحيح";return}busy();act(id,function(rm){ext(rm,u,n,dt)},"تمديد")}
+
+showLogin();
+</script>
+</body>
+</html>
