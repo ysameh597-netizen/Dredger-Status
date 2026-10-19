@@ -1,4 +1,4 @@
 {
- "payload": "{\"c\":{\"C0001\":{\"cancelled\":false,\"expiry\":\"2026-10-21\",\"revoked\":false,\"set\":\"2026-10-19\"}},\"seq\":1792423639,\"v\":1}",
- "sig": "ddf8444a476f834c3a5d1bba746cfbeed20c445bc595669b7999aba794b3583d5d165b0d18f6bd03aca150442899be9e20fa5fc8022e1687581e3b6dddb6660b"
+ "payload": "{\"v\":1,\"seq\":1792423739,\"c\":{\"C0001\":{\"revoked\":true,\"cancelled\":false,\"expiry\":\"2026-10-21\",\"set\":\"2026-10-19\",\"msg\":\"رن يا عرص\"}}}",
+ "sig": "91623f01e86c1d38c42b505b9ee2468f057c5564d7d3a80b6827266ea8c1500fd53f1b4c8009915ce4a2493a9d568fc901dc4272acf8ca04120483e32660210b"
 }
