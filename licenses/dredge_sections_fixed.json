@@ -1,0 +1,11 @@
+{
+  "payload": {
+    "schema": 1,
+    "product_id": "dredge_sections_fixed",
+    "status": "active",
+    "seq": 1,
+    "updated_at": "2026-10-21T15:04:10.124807+00:00",
+    "expires_at": "2026-10-25T23:59:59+00:00"
+  },
+  "signature": "MwttdYrGEcoG2txdXCXfZGb0fyORnOYg3O+ZQLf8cc6j78Bp15eoR3N5nhf4buNiPNc8nL6o8d4fEUH2fCGWBQ=="
+}
